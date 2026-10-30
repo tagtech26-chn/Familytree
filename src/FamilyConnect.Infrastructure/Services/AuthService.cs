@@ -81,8 +81,8 @@ public sealed class AuthService(
     {
         if (string.IsNullOrWhiteSpace(raw)) throw new UnauthorizedAccessException("INVALID_REFRESH_TOKEN");
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
-        var stored = await db.RefreshTokens.FirstOrDefaultAsync(x =>
-            x.TokenHash.SequenceEqual(hash) && x.RevokedAtUtc == null && x.ExpiresAtUtc > DateTime.UtcNow, ct);
+        var candidates = await db.RefreshTokens.Where(x => x.UserId != Guid.Empty && x.RevokedAtUtc == null && x.ExpiresAtUtc > DateTime.UtcNow).ToListAsync(ct);
+        var stored = candidates.FirstOrDefault(x => CryptographicOperations.FixedTimeEquals(x.TokenHash, hash));
         if (stored is null) throw new UnauthorizedAccessException("INVALID_REFRESH_TOKEN");
         var user = await db.Users.FirstOrDefaultAsync(x => x.UserId == stored.UserId && x.Status == "Active", ct);
         if (user is null) throw new UnauthorizedAccessException("INVALID_REFRESH_TOKEN");
@@ -102,7 +102,8 @@ public sealed class AuthService(
     {
         if (string.IsNullOrWhiteSpace(raw)) return;
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
-        var stored = await db.RefreshTokens.FirstOrDefaultAsync(x => x.TokenHash.SequenceEqual(hash) && x.RevokedAtUtc == null, ct);
+        var candidates = await db.RefreshTokens.Where(x => x.RevokedAtUtc == null).ToListAsync(ct);
+        var stored = candidates.FirstOrDefault(x => CryptographicOperations.FixedTimeEquals(x.TokenHash, hash));
         if (stored is null) return;
         stored.RevokedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
