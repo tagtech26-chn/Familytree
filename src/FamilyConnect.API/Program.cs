@@ -17,7 +17,7 @@ builder.Services.AddProblemDetails();
 
 var connectionString = builder.Configuration.GetConnectionString("FamilyConnect")
     ?? throw new InvalidOperationException("ConnectionStrings:FamilyConnect is required.");
-builder.Services.AddDbContext<FamilyConnectDbContext>(o => o.UseSqlServer(connectionString));
+builder.Services.AddDbContext<FamilyConnectDbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<AuthService>();
@@ -25,26 +25,34 @@ builder.Services.AddScoped<FamilyGroupService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IOtpSender, DevelopmentOtpSender>();
 
-var jwtKey = builder.Configuration["Jwt:SigningKey"]
-    ?? throw new InvalidOperationException("Configure Jwt:SigningKey using user-secrets.");
-if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+var signingKey = builder.Configuration["Jwt:SigningKey"]
+    ?? throw new InvalidOperationException("Set Jwt:SigningKey with dotnet user-secrets.");
+if (Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("JWT signing key must be at least 32 bytes.");
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
-    o.TokenValidationParameters = new TokenValidationParameters {
-        ValidateIssuer = true, ValidateAudience = true, ValidateLifetime = true, ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"], ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        ClockSkew = TimeSpan.FromSeconds(30), NameClaimType = ClaimTypes.NameIdentifier
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true, ValidateAudience = true, ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+        ClockSkew = TimeSpan.FromSeconds(30),
+        NameClaimType = ClaimTypes.NameIdentifier
     };
 });
 builder.Services.AddAuthorization();
-builder.Services.AddRateLimiter(o =>
+builder.Services.AddRateLimiter(options =>
 {
-    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddFixedWindowLimiter("otp", opt => {
-        opt.PermitLimit = 5; opt.Window = TimeSpan.FromMinutes(15); opt.QueueLimit = 0;
-        opt.AutoReplenishment = true;
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("otp", limiter =>
+    {
+        limiter.PermitLimit = 5;
+        limiter.Window = TimeSpan.FromMinutes(15);
+        limiter.QueueLimit = 0;
+        limiter.AutoReplenishment = true;
     });
 });
 
