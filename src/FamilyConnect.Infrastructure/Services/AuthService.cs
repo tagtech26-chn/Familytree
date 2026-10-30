@@ -81,7 +81,9 @@ public sealed class AuthService(
     {
         if (string.IsNullOrWhiteSpace(raw)) throw new UnauthorizedAccessException("INVALID_REFRESH_TOKEN");
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
-        var candidates = await db.RefreshTokens.Where(x => x.UserId != Guid.Empty && x.RevokedAtUtc == null && x.ExpiresAtUtc > DateTime.UtcNow).ToListAsync(ct);
+        var candidates = await db.RefreshTokens
+            .Where(x => x.RevokedAtUtc == null && x.ExpiresAtUtc > DateTime.UtcNow)
+            .ToListAsync(ct);
         var stored = candidates.FirstOrDefault(x => CryptographicOperations.FixedTimeEquals(x.TokenHash, hash));
         if (stored is null) throw new UnauthorizedAccessException("INVALID_REFRESH_TOKEN");
         var user = await db.Users.FirstOrDefaultAsync(x => x.UserId == stored.UserId && x.Status == "Active", ct);
@@ -92,7 +94,9 @@ public sealed class AuthService(
         var newHash = SHA256.HashData(Encoding.UTF8.GetBytes(tokens.RefreshToken));
         stored.RevokedAtUtc = DateTime.UtcNow;
         stored.ReplacedByTokenHash = newHash;
-        db.RefreshTokens.Add(new RefreshToken { UserId = user.UserId, TokenHash = newHash, ExpiresAtUtc = DateTime.UtcNow.AddDays(30) });
+        db.RefreshTokens.Add(new RefreshToken {
+            UserId = user.UserId, TokenHash = newHash, ExpiresAtUtc = DateTime.UtcNow.AddDays(30)
+        });
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return tokens;
@@ -113,7 +117,9 @@ public sealed class AuthService(
     {
         var tokens = tokenService.CreateTokens(user);
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(tokens.RefreshToken));
-        db.RefreshTokens.Add(new RefreshToken { UserId = user.UserId, TokenHash = hash, ExpiresAtUtc = DateTime.UtcNow.AddDays(30) });
+        db.RefreshTokens.Add(new RefreshToken {
+            UserId = user.UserId, TokenHash = hash, ExpiresAtUtc = DateTime.UtcNow.AddDays(30)
+        });
         await db.SaveChangesAsync(ct);
         return tokens;
     }
