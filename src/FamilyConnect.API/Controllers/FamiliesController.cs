@@ -31,7 +31,7 @@ public sealed class FamiliesController(FamilyGroupService families) : Controller
     {
         try {
             var joined = await families.JoinAsync(CurrentUserId, request, ct);
-            return Ok(joined);
+            return Accepted(value: joined);
         }
         catch (ArgumentException ex) { return BadRequest(new ApiError("VALIDATION_ERROR", ex.Message)); }
         catch (KeyNotFoundException) { return NotFound(new ApiError("FAMILY_NOT_FOUND", "The family code is invalid or the family is unavailable.")); }
