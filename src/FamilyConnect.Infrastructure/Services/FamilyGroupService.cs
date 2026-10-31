@@ -37,7 +37,7 @@ public sealed class FamilyGroupService(FamilyConnectDbContext db)
             family.Description, "Owner", family.Status, family.CreatedAtUtc);
     }
 
-    public async Task<FamilyResponse> JoinAsync(Guid userId, JoinFamilyRequest request, CancellationToken ct)
+    public async Task<JoinFamilyResponse> JoinAsync(Guid userId, JoinFamilyRequest request, CancellationToken ct)
     {
         var groupCode = request.GroupCode?.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(groupCode) || groupCode.Length > 20)
@@ -70,8 +70,8 @@ public sealed class FamilyGroupService(FamilyConnectDbContext db)
             db.FamilyGroupMemberships.Add(membership);
         }
         await db.SaveChangesAsync(ct);
-        return new FamilyResponse(family.FamilyGroupId, family.GroupCode, family.GroupName,
-            family.Description, "Pending", family.Status, family.CreatedAtUtc);
+        return new JoinFamilyResponse(family.FamilyGroupId, family.GroupCode, family.GroupName,
+            family.Description, "Member", "Pending", family.Status, family.CreatedAtUtc);
     }
 
     public async Task<IReadOnlyList<FamilyMembershipRequestResponse>> ListPendingRequestsAsync(
