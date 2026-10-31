@@ -35,7 +35,7 @@ public sealed class FamiliesController(FamilyGroupService families) : Controller
         }
         catch (ArgumentException ex) { return BadRequest(new ApiError("VALIDATION_ERROR", ex.Message)); }
         catch (KeyNotFoundException) { return NotFound(new ApiError("FAMILY_NOT_FOUND", "The family code is invalid or the family is unavailable.")); }
-        catch (InvalidOperationException ex) { return Conflict(new ApiError("ALREADY_A_MEMBER", ex.Message)); }
+        catch (InvalidOperationException ex) { return Conflict(new ApiError(ex.Message, ex.Message)); }
         catch (UnauthorizedAccessException ex) { return Forbid(); }
     }
 
