@@ -62,8 +62,14 @@ Creator's Owner membership must be created in the same database transaction as t
 ## POST /families/join (JWT)
 Request:
 { "groupCode": "FAM-ABC123" }
-Response 200: FamilyResponse with role "Member".
-The account must be active. Group codes are case-insensitive. Existing active members receive 409 ALREADY_A_MEMBER. Unknown or inactive families return 404. A suspended membership cannot rejoin. A prior Left or Invited membership is reactivated as Member.
+Response 202: JoinFamilyResponse with role "Member" and membershipStatus "Pending".
+The account must be active. Group codes are case-insensitive. Existing active members receive 409 ALREADY_A_MEMBER; an existing pending request receives 409 JOIN_REQUEST_ALREADY_PENDING. Unknown or inactive families return 404. Suspended memberships cannot rejoin. A prior Left or Invited membership creates a new Pending request.
+
+## Family join request approval (Owner JWT)
+- GET /families/{familyGroupId}/join-requests — list pending requests.
+- POST /families/{familyGroupId}/join-requests/{membershipId}/approve — approve; returns 204.
+- POST /families/{familyGroupId}/join-requests/{membershipId}/reject — reject; returns 204 and marks membership Left.
+Only the active Owner of that family can review requests. Pending and rejected users have no family access. Approval changes membership status to Active.
 
 ## GET /families (JWT)
 Returns only active family groups where the current account has active membership.
