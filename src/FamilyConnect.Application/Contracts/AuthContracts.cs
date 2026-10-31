@@ -8,6 +8,7 @@ public sealed record RefreshRequest(string RefreshToken);
 public sealed record TokenResponse(string AccessToken, string RefreshToken, DateTime AccessTokenExpiresAtUtc, Guid UserId);
 public sealed record CreateFamilyRequest(string Name, string? Description, string DefaultLanguage = "en", string TimeZoneId = "Asia/Kolkata");
 public sealed record JoinFamilyRequest(string GroupCode);
+public sealed record JoinFamilyResponse(Guid FamilyGroupId, string GroupCode, string Name, string? Description, string Role, string MembershipStatus, string FamilyStatus, DateTime CreatedAtUtc);
 public sealed record FamilyMembershipRequestResponse(Guid MembershipId, Guid UserId, string? MobileNumber, string? Email, DateTime RequestedAtUtc);
 public sealed record FamilyResponse(Guid FamilyGroupId, string GroupCode, string Name, string? Description, string Role, string Status, DateTime CreatedAtUtc);
 public sealed record ApiError(string Code, string Message);
