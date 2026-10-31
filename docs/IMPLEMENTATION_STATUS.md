@@ -7,8 +7,11 @@
 - JWT access token issuance.
 - Persisted SHA-256 refresh token hashes, 30-day expiry, refresh rotation and logout revocation.
 - Multi-family creation; creator receives Owner membership.
-- List current user's active family groups.
-- Membership access-check endpoint.
+- Family-code join requests are Pending until Owner approval.
+- Owner-only pending request list, approve and reject endpoints.
+- List current user's active family groups; only Active memberships are returned.
+- Membership access checks require both Active membership and Active family status.
+- SQL migration 003 adds Pending membership status.
 - OpenAPI in Development, health endpoint, local launch profile.
 - Initial xUnit family creation tests.
 - Project specification, architecture and API contracts.
