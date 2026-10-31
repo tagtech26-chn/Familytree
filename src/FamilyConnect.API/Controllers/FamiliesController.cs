@@ -49,4 +49,35 @@ public sealed class FamiliesController(FamilyGroupService families) : Controller
         var allowed = await families.HasAccessAsync(CurrentUserId, familyGroupId, ct);
         return allowed ? Ok(new { familyGroupId, access = true }) : NotFound();
     }
+
+    [HttpGet("{familyGroupId:guid}/join-requests")]
+    public async Task<IActionResult> ListJoinRequests(Guid familyGroupId, CancellationToken ct)
+    {
+        try { return Ok(await families.ListPendingRequestsAsync(CurrentUserId, familyGroupId, ct)); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    [HttpPost("{familyGroupId:guid}/join-requests/{membershipId:guid}/approve")]
+    public async Task<IActionResult> ApproveJoinRequest(Guid familyGroupId, Guid membershipId, CancellationToken ct)
+    {
+        try
+        {
+            await families.ApproveJoinRequestAsync(CurrentUserId, familyGroupId, membershipId, ct);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new ApiError("PENDING_REQUEST_NOT_FOUND", "The pending join request was not found.")); }
+    }
+
+    [HttpPost("{familyGroupId:guid}/join-requests/{membershipId:guid}/reject")]
+    public async Task<IActionResult> RejectJoinRequest(Guid familyGroupId, Guid membershipId, CancellationToken ct)
+    {
+        try
+        {
+            await families.RejectJoinRequestAsync(CurrentUserId, familyGroupId, membershipId, ct);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new ApiError("PENDING_REQUEST_NOT_FOUND", "The pending join request was not found.")); }
+    }
 }
