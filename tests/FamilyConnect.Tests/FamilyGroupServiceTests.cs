@@ -67,4 +67,54 @@ public sealed class FamilyGroupServiceTests
         Assert.Equal(2, await db.FamilyGroups.CountAsync());
         Assert.Equal(2, await db.FamilyGroupMemberships.CountAsync(x => x.UserId == user.UserId));
     }
+
+    [Fact]
+    public async Task JoinAsync_AddsActiveMemberWithoutChangingOwner()
+    {
+        await using var db = CreateDb();
+        var owner = new AppUser { Status = "Active", PasswordHash = "owner-hash" };
+        var member = new AppUser { Status = "Active", PasswordHash = "member-hash" };
+        db.Users.AddRange(owner, member);
+        await db.SaveChangesAsync();
+        var service = new FamilyGroupService(db);
+        var created = await service.CreateAsync(owner.UserId,
+            new("Shared Family", null), CancellationToken.None);
+
+        var joined = await service.JoinAsync(member.UserId,
+            new(created.GroupCode.ToLowerInvariant()), CancellationToken.None);
+
+        Assert.Equal(created.FamilyGroupId, joined.FamilyGroupId);
+        Assert.Equal("Member", joined.Role);
+        Assert.Equal("Owner", (await db.FamilyGroupMemberships.SingleAsync(x => x.UserId == owner.UserId)).RoleCode);
+        Assert.Equal("Member", (await db.FamilyGroupMemberships.SingleAsync(x => x.UserId == member.UserId)).RoleCode);
+    }
+
+    [Fact]
+    public async Task JoinAsync_RejectsExistingActiveMember()
+    {
+        await using var db = CreateDb();
+        var owner = new AppUser { Status = "Active", PasswordHash = "owner-hash" };
+        db.Users.Add(owner);
+        await db.SaveChangesAsync();
+        var service = new FamilyGroupService(db);
+        var created = await service.CreateAsync(owner.UserId,
+            new("Shared Family", null), CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.JoinAsync(owner.UserId, new(created.GroupCode), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task JoinAsync_RejectsUnknownGroupCode()
+    {
+        await using var db = CreateDb();
+        var member = new AppUser { Status = "Active", PasswordHash = "member-hash" };
+        db.Users.Add(member);
+        await db.SaveChangesAsync();
+        var service = new FamilyGroupService(db);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            service.JoinAsync(member.UserId, new("FAM-UNKNOWN"), CancellationToken.None));
+    }
+
 }
