@@ -37,6 +37,52 @@ public sealed class FamilyGroupService(FamilyConnectDbContext db)
             family.Description, "Owner", family.Status, family.CreatedAtUtc);
     }
 
+    public async Task<FamilyResponse> JoinAsync(Guid userId, JoinFamilyRequest request, CancellationToken ct)
+    {
+        var groupCode = request.GroupCode?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(groupCode) || groupCode.Length > 20)
+            throw new ArgumentException("A valid family group code is required.");
+
+        if (!await db.Users.AnyAsync(x => x.UserId == userId && x.Status == "Active", ct))
+            throw new UnauthorizedAccessException("ACTIVE_VERIFIED_ACCOUNT_REQUIRED");
+
+        var family = await db.FamilyGroups.SingleOrDefaultAsync(
+            x => x.GroupCode == groupCode && x.Status == "Active", ct);
+        if (family is null)
+            throw new KeyNotFoundException("FAMILY_NOT_FOUND");
+
+        var membership = await db.FamilyGroupMemberships.SingleOrDefaultAsync(
+            x => x.FamilyGroupId == family.FamilyGroupId && x.UserId == userId, ct);
+
+        if (membership is not null)
+        {
+            if (membership.Status == "Active")
+                throw new InvalidOperationException("ALREADY_A_MEMBER");
+            if (membership.Status == "Suspended")
+                throw new UnauthorizedAccessException("MEMBERSHIP_SUSPENDED");
+
+            // A previous invitation or a user who left may rejoin the same family.
+            membership.RoleCode = "Member";
+            membership.Status = "Active";
+            membership.JoinedAtUtc = DateTime.UtcNow;
+        }
+        else
+        {
+            membership = new FamilyGroupMembership
+            {
+                FamilyGroupId = family.FamilyGroupId,
+                UserId = userId,
+                RoleCode = "Member",
+                Status = "Active"
+            };
+            db.FamilyGroupMemberships.Add(membership);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return new FamilyResponse(family.FamilyGroupId, family.GroupCode, family.GroupName,
+            family.Description, membership.RoleCode, family.Status, family.CreatedAtUtc);
+    }
+
     public async Task<IReadOnlyList<FamilyResponse>> ListMineAsync(Guid userId, CancellationToken ct)
     {
         return await (from membership in db.FamilyGroupMemberships
