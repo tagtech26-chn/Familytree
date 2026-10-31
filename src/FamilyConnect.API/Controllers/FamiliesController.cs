@@ -26,6 +26,19 @@ public sealed class FamiliesController(FamilyGroupService families) : Controller
         catch (UnauthorizedAccessException) { return Forbid(); }
     }
 
+    [HttpPost("join")]
+    public async Task<IActionResult> Join(JoinFamilyRequest request, CancellationToken ct)
+    {
+        try {
+            var joined = await families.JoinAsync(CurrentUserId, request, ct);
+            return Ok(joined);
+        }
+        catch (ArgumentException ex) { return BadRequest(new ApiError("VALIDATION_ERROR", ex.Message)); }
+        catch (KeyNotFoundException) { return NotFound(new ApiError("FAMILY_NOT_FOUND", "The family code is invalid or the family is unavailable.")); }
+        catch (InvalidOperationException ex) { return Conflict(new ApiError("ALREADY_A_MEMBER", ex.Message)); }
+        catch (UnauthorizedAccessException ex) { return Forbid(); }
+    }
+
     [HttpGet]
     public async Task<IActionResult> ListMine(CancellationToken ct) =>
         Ok(await families.ListMineAsync(CurrentUserId, ct));
