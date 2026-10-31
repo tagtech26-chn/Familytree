@@ -82,7 +82,8 @@ public sealed class FamilyGroupServiceTests
         var joined = await service.JoinAsync(member.UserId,
             new(created.GroupCode.ToLowerInvariant()), CancellationToken.None);
 
-        Assert.Equal("Pending", joined.Role);
+        Assert.Equal("Member", joined.Role);
+        Assert.Equal("Pending", joined.MembershipStatus);
         Assert.False(await service.HasAccessAsync(member.UserId, created.FamilyGroupId, CancellationToken.None));
         Assert.Equal("Owner", (await db.FamilyGroupMemberships.SingleAsync(x => x.UserId == owner.UserId)).RoleCode);
         Assert.Equal("Pending", (await db.FamilyGroupMemberships.SingleAsync(x => x.UserId == member.UserId)).Status);
