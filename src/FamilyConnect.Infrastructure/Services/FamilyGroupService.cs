@@ -42,45 +42,81 @@ public sealed class FamilyGroupService(FamilyConnectDbContext db)
         var groupCode = request.GroupCode?.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(groupCode) || groupCode.Length > 20)
             throw new ArgumentException("A valid family group code is required.");
-
         if (!await db.Users.AnyAsync(x => x.UserId == userId && x.Status == "Active", ct))
             throw new UnauthorizedAccessException("ACTIVE_VERIFIED_ACCOUNT_REQUIRED");
 
         var family = await db.FamilyGroups.SingleOrDefaultAsync(
             x => x.GroupCode == groupCode && x.Status == "Active", ct);
-        if (family is null)
-            throw new KeyNotFoundException("FAMILY_NOT_FOUND");
+        if (family is null) throw new KeyNotFoundException("FAMILY_NOT_FOUND");
 
         var membership = await db.FamilyGroupMemberships.SingleOrDefaultAsync(
             x => x.FamilyGroupId == family.FamilyGroupId && x.UserId == userId, ct);
-
         if (membership is not null)
         {
-            if (membership.Status == "Active")
-                throw new InvalidOperationException("ALREADY_A_MEMBER");
-            if (membership.Status == "Suspended")
-                throw new UnauthorizedAccessException("MEMBERSHIP_SUSPENDED");
-
-            // A previous invitation or a user who left may rejoin the same family.
+            if (membership.Status == "Active") throw new InvalidOperationException("ALREADY_A_MEMBER");
+            if (membership.Status == "Pending") throw new InvalidOperationException("JOIN_REQUEST_ALREADY_PENDING");
+            if (membership.Status == "Suspended") throw new UnauthorizedAccessException("MEMBERSHIP_SUSPENDED");
             membership.RoleCode = "Member";
-            membership.Status = "Active";
+            membership.Status = "Pending";
             membership.JoinedAtUtc = DateTime.UtcNow;
         }
         else
         {
             membership = new FamilyGroupMembership
             {
-                FamilyGroupId = family.FamilyGroupId,
-                UserId = userId,
-                RoleCode = "Member",
-                Status = "Active"
+                FamilyGroupId = family.FamilyGroupId, UserId = userId,
+                RoleCode = "Member", Status = "Pending"
             };
             db.FamilyGroupMemberships.Add(membership);
         }
-
         await db.SaveChangesAsync(ct);
         return new FamilyResponse(family.FamilyGroupId, family.GroupCode, family.GroupName,
-            family.Description, membership.RoleCode, family.Status, family.CreatedAtUtc);
+            family.Description, "Pending", family.Status, family.CreatedAtUtc);
+    }
+
+    public async Task<IReadOnlyList<FamilyMembershipRequestResponse>> ListPendingRequestsAsync(
+        Guid ownerUserId, Guid familyGroupId, CancellationToken ct)
+    {
+        await EnsureOwnerAsync(ownerUserId, familyGroupId, ct);
+        return await (from membership in db.FamilyGroupMemberships
+                      join user in db.Users on membership.UserId equals user.UserId
+                      where membership.FamilyGroupId == familyGroupId && membership.Status == "Pending"
+                      orderby membership.JoinedAtUtc
+                      select new FamilyMembershipRequestResponse(
+                          membership.MembershipId, user.UserId, user.MobileNumber, user.Email, membership.JoinedAtUtc))
+            .ToListAsync(ct);
+    }
+
+    public async Task ApproveJoinRequestAsync(Guid ownerUserId, Guid familyGroupId, Guid membershipId, CancellationToken ct)
+    {
+        await EnsureOwnerAsync(ownerUserId, familyGroupId, ct);
+        var membership = await db.FamilyGroupMemberships.SingleOrDefaultAsync(
+            x => x.MembershipId == membershipId && x.FamilyGroupId == familyGroupId && x.Status == "Pending", ct);
+        if (membership is null) throw new KeyNotFoundException("PENDING_REQUEST_NOT_FOUND");
+        membership.Status = "Active";
+        membership.JoinedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task RejectJoinRequestAsync(Guid ownerUserId, Guid familyGroupId, Guid membershipId, CancellationToken ct)
+    {
+        await EnsureOwnerAsync(ownerUserId, familyGroupId, ct);
+        var membership = await db.FamilyGroupMemberships.SingleOrDefaultAsync(
+            x => x.MembershipId == membershipId && x.FamilyGroupId == familyGroupId && x.Status == "Pending", ct);
+        if (membership is null) throw new KeyNotFoundException("PENDING_REQUEST_NOT_FOUND");
+        membership.Status = "Left";
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task EnsureOwnerAsync(Guid userId, Guid familyGroupId, CancellationToken ct)
+    {
+        var isOwner = await (from membership in db.FamilyGroupMemberships
+                             join family in db.FamilyGroups on membership.FamilyGroupId equals family.FamilyGroupId
+                             where membership.UserId == userId && membership.FamilyGroupId == familyGroupId
+                                && membership.RoleCode == "Owner" && membership.Status == "Active"
+                                && family.Status == "Active"
+                             select membership.MembershipId).AnyAsync(ct);
+        if (!isOwner) throw new UnauthorizedAccessException("FAMILY_OWNER_REQUIRED");
     }
 
     public async Task<IReadOnlyList<FamilyResponse>> ListMineAsync(Guid userId, CancellationToken ct)
@@ -95,8 +131,11 @@ public sealed class FamilyGroupService(FamilyConnectDbContext db)
     }
 
     public Task<bool> HasAccessAsync(Guid userId, Guid familyGroupId, CancellationToken ct) =>
-        db.FamilyGroupMemberships.AnyAsync(x => x.UserId == userId && x.FamilyGroupId == familyGroupId
-            && x.Status == "Active", ct);
+        (from membership in db.FamilyGroupMemberships
+         join family in db.FamilyGroups on membership.FamilyGroupId equals family.FamilyGroupId
+         where membership.UserId == userId && membership.FamilyGroupId == familyGroupId
+            && membership.Status == "Active" && family.Status == "Active"
+         select membership.MembershipId).AnyAsync(ct);
 
     private async Task<string> GenerateUniqueCodeAsync(CancellationToken ct)
     {
