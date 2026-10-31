@@ -59,6 +59,12 @@ Response 201:
 }
 Creator's Owner membership must be created in the same database transaction as the family group.
 
+## POST /families/join (JWT)
+Request:
+{ "groupCode": "FAM-ABC123" }
+Response 200: FamilyResponse with role "Member".
+The account must be active. Group codes are case-insensitive. Existing active members receive 409 ALREADY_A_MEMBER. Unknown or inactive families return 404. A suspended membership cannot rejoin. A prior Left or Invited membership is reactivated as Member.
+
 ## GET /families (JWT)
 Returns only active family groups where the current account has active membership.
 
