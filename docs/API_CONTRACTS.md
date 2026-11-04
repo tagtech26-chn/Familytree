@@ -47,17 +47,19 @@ Request:
   "defaultLanguage": "ta",
   "timeZoneId": "Asia/Kolkata"
 }
-Response 201:
-{
-  "familyGroupId": "guid",
-  "groupCode": "FAM-ABC123",
-  "name": "Aravind Family",
-  "description": "Private family group",
-  "role": "Owner",
-  "status": "Active",
-  "createdAtUtc": "..."
-}
+Response 201: family details including familyGroupId, groupCode, name, description, role, status and createdAtUtc.
 Creator's Owner membership must be created in the same database transaction as the family group.
+
+## PUT /families/{familyGroupId} (Owner JWT)
+Updates the family name, description, default language and time zone.
+Request:
+{
+  "name": "Aravind Family - Updated",
+  "description": "Updated family description",
+  "defaultLanguage": "ta",
+  "timeZoneId": "Asia/Kolkata"
+}
+Response 200: updated FamilyResponse. Only the active Owner of the specified active family may update it. Members and non-members receive 403. Validation failures return 400.
 
 ## POST /families/join (JWT)
 Request:
