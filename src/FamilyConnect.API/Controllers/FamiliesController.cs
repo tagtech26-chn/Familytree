@@ -26,6 +26,14 @@ public sealed class FamiliesController(FamilyGroupService families) : Controller
         catch (UnauthorizedAccessException) { return Forbid(); }
     }
 
+    [HttpPut("{familyGroupId:guid}")]
+    public async Task<IActionResult> Update(Guid familyGroupId, UpdateFamilyRequest request, CancellationToken ct)
+    {
+        try { return Ok(await families.UpdateAsync(CurrentUserId, familyGroupId, request, ct)); }
+        catch (ArgumentException ex) { return BadRequest(new ApiError("VALIDATION_ERROR", ex.Message)); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
     [HttpPost("join")]
     public async Task<IActionResult> Join(JoinFamilyRequest request, CancellationToken ct)
     {
