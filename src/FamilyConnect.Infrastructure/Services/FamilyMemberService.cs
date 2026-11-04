@@ -41,7 +41,7 @@ public sealed class FamilyMemberService(FamilyConnectDbContext db)
         await EnsureEditorAsync(userId, familyGroupId, ct);
         Validate(request.FullName, request.Gender, request.DateOfBirth, request.DateOfDeath,
             request.TamilName, request.PlaceOfBirth, request.ContactNumber, request.Email);
-        await ValidateLinkedUserAsync(familyGroupId, request.LinkedUserId, ct);
+        await ValidateLinkedUserAsync(familyGroupId, request.LinkedUserId, null, ct);
 
         var now = DateTime.UtcNow;
         var member = new FamilyMember {
@@ -69,11 +69,10 @@ public sealed class FamilyMemberService(FamilyConnectDbContext db)
             throw new ArgumentException("Status must be Active, Deceased or Archived.");
         if (request.DateOfDeath.HasValue && request.Status == "Active")
             throw new ArgumentException("A member with a date of death cannot have Active status.");
-        await ValidateLinkedUserAsync(familyGroupId, request.LinkedUserId, ct);
-
         var member = await db.FamilyMembers.SingleOrDefaultAsync(
             x => x.FamilyGroupId == familyGroupId && x.FamilyMemberId == familyMemberId, ct);
         if (member is null) throw new KeyNotFoundException("FAMILY_MEMBER_NOT_FOUND");
+        await ValidateLinkedUserAsync(familyGroupId, request.LinkedUserId, familyMemberId, ct);
         member.FullName = request.FullName.Trim();
         member.TamilName = Clean(request.TamilName);
         member.Gender = Clean(request.Gender);
@@ -110,7 +109,7 @@ public sealed class FamilyMemberService(FamilyConnectDbContext db)
         if (!allowed) throw new UnauthorizedAccessException("FAMILY_PROFILE_EDIT_PERMISSION_REQUIRED");
     }
 
-    private async Task ValidateLinkedUserAsync(Guid familyGroupId, Guid? linkedUserId, CancellationToken ct)
+    private async Task ValidateLinkedUserAsync(Guid familyGroupId, Guid? linkedUserId, Guid? excludeFamilyMemberId, CancellationToken ct)
     {
         if (!linkedUserId.HasValue) return;
         var isActiveMember = await db.FamilyGroupMemberships.AnyAsync(
@@ -119,7 +118,7 @@ public sealed class FamilyMemberService(FamilyConnectDbContext db)
             throw new ArgumentException("LinkedUserId must belong to an active member of this family group.");
         var alreadyLinked = await db.FamilyMembers.AnyAsync(
             x => x.FamilyGroupId == familyGroupId && x.LinkedUserId == linkedUserId.Value
-                 && x.Status != "Archived", ct);
+                 && x.Status != "Archived" && (!excludeFamilyMemberId.HasValue || x.FamilyMemberId != excludeFamilyMemberId.Value), ct);
         if (alreadyLinked)
             throw new ArgumentException("This login account is already linked to a family-member profile.");
     }
