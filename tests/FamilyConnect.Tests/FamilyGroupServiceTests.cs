@@ -1,4 +1,5 @@
 using FamilyConnect.Domain.Entities;
+using FamilyConnect.Application.Contracts;
 using FamilyConnect.Infrastructure.Persistence;
 using FamilyConnect.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -37,6 +38,63 @@ public sealed class FamilyGroupServiceTests
         Assert.Equal(user.UserId, membership.UserId);
         Assert.Equal(family.FamilyGroupId, membership.FamilyGroupId);
         Assert.Equal("Owner", membership.RoleCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_OwnerCanUpdateFamilyDetails()
+    {
+        await using var db = CreateDb();
+        var owner = new AppUser { Status = "Active", PasswordHash = "owner-hash" };
+        db.Users.Add(owner);
+        await db.SaveChangesAsync();
+        var service = new FamilyGroupService(db);
+        var created = await service.CreateAsync(owner.UserId, new("Old Family", "Old description"), CancellationToken.None);
+
+        var updated = await service.UpdateAsync(owner.UserId, created.FamilyGroupId,
+            new("New Family", "Updated description", "ta", "Asia/Kolkata"), CancellationToken.None);
+
+        Assert.Equal("New Family", updated.Name);
+        Assert.Equal("Updated description", updated.Description);
+        Assert.Equal("ta", (await db.FamilyGroups.SingleAsync()).DefaultLanguage);
+        Assert.Equal("Asia/Kolkata", (await db.FamilyGroups.SingleAsync()).TimeZoneId);
+        Assert.Equal(created.GroupCode, updated.GroupCode);
+        Assert.Equal("Owner", updated.Role);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NonOwnerCannotUpdateFamilyDetails()
+    {
+        await using var db = CreateDb();
+        var owner = new AppUser { Status = "Active", PasswordHash = "owner-hash" };
+        var member = new AppUser { Status = "Active", PasswordHash = "member-hash" };
+        db.Users.AddRange(owner, member);
+        await db.SaveChangesAsync();
+        var service = new FamilyGroupService(db);
+        var created = await service.CreateAsync(owner.UserId, new("Shared Family", null), CancellationToken.None);
+        await service.JoinAsync(member.UserId, new(created.GroupCode), CancellationToken.None);
+        var pending = await db.FamilyGroupMemberships.SingleAsync(x => x.UserId == member.UserId);
+        await service.ApproveJoinRequestAsync(owner.UserId, created.FamilyGroupId, pending.MembershipId, CancellationToken.None);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.UpdateAsync(member.UserId, created.FamilyGroupId,
+                new("Attempted Rename", null), CancellationToken.None));
+        Assert.Equal("Shared Family", (await db.FamilyGroups.SingleAsync()).GroupName);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsInvalidFamilyDetails()
+    {
+        await using var db = CreateDb();
+        var owner = new AppUser { Status = "Active", PasswordHash = "owner-hash" };
+        db.Users.Add(owner);
+        await db.SaveChangesAsync();
+        var service = new FamilyGroupService(db);
+        var created = await service.CreateAsync(owner.UserId, new("Valid Family", null), CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.UpdateAsync(owner.UserId, created.FamilyGroupId,
+                new(" ", null), CancellationToken.None));
+        Assert.Equal("Valid Family", (await db.FamilyGroups.SingleAsync()).GroupName);
     }
 
     [Fact]
@@ -177,5 +235,4 @@ public sealed class FamilyGroupServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             service.JoinAsync(member.UserId, new("FAM-UNKNOWN"), CancellationToken.None));
     }
-
 }
