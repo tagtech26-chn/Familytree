@@ -37,6 +37,33 @@ public sealed class FamilyGroupService(FamilyConnectDbContext db)
             family.Description, "Owner", family.Status, family.CreatedAtUtc);
     }
 
+    public async Task<FamilyResponse> UpdateAsync(Guid ownerUserId, Guid familyGroupId, UpdateFamilyRequest request, CancellationToken ct)
+    {
+        var name = request.Name?.Trim();
+        var description = request.Description?.Trim();
+        var timeZoneId = request.TimeZoneId?.Trim();
+
+        if (string.IsNullOrWhiteSpace(name) || name.Length < 2 || name.Length > 150)
+            throw new ArgumentException("Family name must contain between 2 and 150 characters.");
+        if (description?.Length > 1000)
+            throw new ArgumentException("Family description cannot exceed 1000 characters.");
+        if (request.DefaultLanguage is not ("en" or "ta"))
+            throw new ArgumentException("DefaultLanguage must be en or ta.");
+        if (string.IsNullOrWhiteSpace(timeZoneId) || timeZoneId.Length > 100)
+            throw new ArgumentException("A valid time zone ID of up to 100 characters is required.");
+
+        await EnsureOwnerAsync(ownerUserId, familyGroupId, ct);
+        var family = await db.FamilyGroups.SingleAsync(x => x.FamilyGroupId == familyGroupId && x.Status == "Active", ct);
+        family.GroupName = name;
+        family.Description = description;
+        family.DefaultLanguage = request.DefaultLanguage;
+        family.TimeZoneId = timeZoneId;
+        await db.SaveChangesAsync(ct);
+
+        return new FamilyResponse(family.FamilyGroupId, family.GroupCode, family.GroupName,
+            family.Description, "Owner", family.Status, family.CreatedAtUtc);
+    }
+
     public async Task<JoinFamilyResponse> JoinAsync(Guid userId, JoinFamilyRequest request, CancellationToken ct)
     {
         var groupCode = request.GroupCode?.Trim().ToUpperInvariant();
