@@ -12,79 +12,48 @@ Request:
 }
 Response 202:
 { "userId": "guid", "verificationRequired": true, "delivery": "sms" }
-
 At least one of mobileNumber/email is required. Password minimum 12 characters. Language en or ta.
 
 ## POST /auth/otp/verify
-Request:
-{ "destination": "+919876543210", "purpose": "Registration", "code": "123456" }
-Response 200:
-{
-  "accessToken": "...",
-  "refreshToken": "...",
-  "accessTokenExpiresAtUtc": "2026-10-30T12:00:00Z",
-  "userId": "guid"
-}
-OTP is single-use and expires. Enforce rate limits and max failed attempts.
+Request: { "destination": "+919876543210", "purpose": "Registration", "code": "123456" }
+Response 200: accessToken, refreshToken, accessTokenExpiresAtUtc, userId. OTP is single-use and expires.
 
 ## POST /auth/login
-Request: { "login": "+919876543210", "password": "..." }
-Response: same token response.
+Request: { "login": "+919876543210", "password": "..." }. Response: token response.
 
 ## POST /auth/refresh
-Request: { "refreshToken": "..." }
-Response: same token response with rotated refresh token.
+Request: { "refreshToken": "..." }. Response: token response with rotated refresh token.
 
 ## POST /auth/logout
-Request: { "refreshToken": "..." }
-Response: 204. Revokes refresh token.
+Request: { "refreshToken": "..." }. Response: 204. Revokes refresh token.
 
 ## POST /families (JWT)
-Request:
-{
-  "name": "Aravind Family",
-  "description": "Private family group",
-  "defaultLanguage": "ta",
-  "timeZoneId": "Asia/Kolkata"
-}
-Response 201: family details including familyGroupId, groupCode, name, description, role, status and createdAtUtc.
-Creator's Owner membership must be created in the same database transaction as the family group.
+Request includes name, description, defaultLanguage (en/ta), timeZoneId. Response 201 includes familyGroupId, groupCode, name, description, role, status and createdAtUtc. Creator receives Owner membership.
 
 ## PUT /families/{familyGroupId} (Owner JWT)
-Updates the family name, description, default language and time zone.
-Request:
-{
-  "name": "Aravind Family - Updated",
-  "description": "Updated family description",
-  "defaultLanguage": "ta",
-  "timeZoneId": "Asia/Kolkata"
-}
-Response 200: updated FamilyResponse. Only the active Owner of the specified active family may update it. Members and non-members receive 403. Validation failures return 400.
+Updates family name, description, default language and time zone. Only active Owner can update.
 
 ## POST /families/join (JWT)
-Request:
-{ "groupCode": "FAM-ABC123" }
-Response 202: JoinFamilyResponse with role "Member" and membershipStatus "Pending".
-The account must be active. Group codes are case-insensitive. Existing active members receive 409 ALREADY_A_MEMBER; an existing pending request receives 409 JOIN_REQUEST_ALREADY_PENDING. Unknown or inactive families return 404. Suspended memberships cannot rejoin. A prior Left or Invited membership creates a new Pending request.
-
-## Family join request approval (Owner JWT)
-- GET /families/{familyGroupId}/join-requests — list pending requests.
-- POST /families/{familyGroupId}/join-requests/{membershipId}/approve — approve; returns 204.
-- POST /families/{familyGroupId}/join-requests/{membershipId}/reject — reject; returns 204 and marks membership Left.
-Only the active Owner of that family can review requests. Pending and rejected users have no family access. Approval changes membership status to Active.
+Request: { "groupCode": "FAM-ABC123" }. Response 202 with membershipStatus Pending. Only Owner can approve or reject requests:
+- GET /families/{familyGroupId}/join-requests
+- POST /families/{familyGroupId}/join-requests/{membershipId}/approve
+- POST /families/{familyGroupId}/join-requests/{membershipId}/reject
+Pending and rejected users have no family access.
 
 ## GET /families (JWT)
 Returns only active family groups where the current account has active membership.
 
 ## GET /families/{familyGroupId}/access (JWT)
-Returns { familyGroupId, access: true } for active members. Return 404 if not a member to avoid disclosing existence.
+Returns { familyGroupId, access: true } for active members. Returns 404 otherwise.
+
+## Family member profiles (JWT)
+Family profiles are separate from login accounts. A profile can represent a child, deceased relative, or person without an app account. LinkedUserId is optional and, when supplied, must identify an active member of the same family. A login account can be linked to only one non-archived profile per family.
+- GET /families/{familyGroupId}/members — list non-archived profiles; any active family member may read.
+- GET /families/{familyGroupId}/members/{familyMemberId} — read one profile; any active family member may read.
+- POST /families/{familyGroupId}/members — create profile; Owner, Admin or Editor only. Returns 201.
+- PUT /families/{familyGroupId}/members/{familyMemberId} — update profile; Owner, Admin or Editor only. Returns 200.
+Fields: FullName (required), TamilName, Gender (Male/Female/Other/PreferNotToSay), DateOfBirth, PlaceOfBirth, DateOfDeath, ContactNumber, Email, LinkedUserId (optional). Status is Active, Deceased or Archived. Archived profiles are hidden from list/get.
+An active member cannot access another family's profiles. Inactive/non-members receive 404; Members attempting write operations receive 403.
 
 ## Error conventions
-- 400 VALIDATION_ERROR
-- 401 INVALID_CREDENTIALS / INVALID_OR_EXPIRED_OTP
-- 403 authenticated but insufficient permission
-- 404 missing or concealed cross-family resource
-- 409 ACCOUNT_ALREADY_EXISTS
-- 429 rate limit reached
-
-All IDs are GUIDs. Timestamps are UTC ISO-8601. Family event date fields later use YYYY-MM-DD.
+400 validation error; 401 unauthenticated/invalid token; 403 insufficient role; 404 missing or concealed cross-family resource; 409 conflict; 429 rate limit. IDs are GUIDs; timestamps are UTC ISO-8601.

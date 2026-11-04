@@ -1,37 +1,28 @@
 # Phase 1 implementation status
 
 ## Committed in this branch
-- Solution and .NET project structure for API, Domain, Application, Infrastructure.
-- SQL Server Express database creation and Phase 1 identity/family schema.
-- Registration, password hashing, OTP challenge generation/verification.
-- JWT access token issuance.
-- Persisted SHA-256 refresh token hashes, 30-day expiry, refresh rotation and logout revocation.
+- Solution and .NET project structure for API, Domain, Application and Infrastructure.
+- SQL Server Express identity and family schema.
+- Registration, password hashing, OTP verification, JWT access tokens, refresh rotation and logout.
 - Multi-family creation; creator receives Owner membership.
-- Owner-only family detail update (name, description, default language and time zone).
-- Family-code join requests are Pending until Owner approval.
-- Owner-only pending request list, approve and reject endpoints.
-- List current user's active family groups; only Active memberships are returned.
-- Membership access checks require both Active membership and Active family status.
-- SQL migration 003 adds Pending membership status.
-- OpenAPI in Development, health endpoint, local launch profile.
-- xUnit service tests for family creation, updates, join approval and access control.
-- Project specification, architecture and API contracts.
+- Owner-only family detail update.
+- Family-code join requests remain Pending until Owner approval; Owner-only list, approve and reject.
+- Active family listing and membership access checks.
+- Family member profile entity and SQL migration 006.
+- Family member list/get for active members; create/update restricted to Owner, Admin and Editor.
+- Optional login-account linking, scoped to an active membership in the same family.
+- API contracts and xUnit service tests.
 
 ## Local setup and checks
-See README.md. Run from repository root:
-`dotnet restore`
-`dotnet build`
-`dotnet test`
+Run from repository root: dotnet restore; dotnet build; dotnet test.
+Apply database scripts in numeric order, including database/scripts/006_family_member_profiles.sql.
 
 ## Known gaps before production
 - Development OTP sender prints OTP to API logs; replace with SMS/email provider.
-- Registration with both mobile and email currently verifies the primary destination (mobile takes precedence); add separate verification challenges for both.
-- Add OTP resend cooldown, per-IP rate limiting, account lockout and production abuse controls.
-- Refresh lookup currently loads non-revoked unexpired refresh token records and compares hashes in constant time in application memory. For larger user bases, implement indexed keyed lookup safely (e.g. HMAC digest) and per-device session records.
-- Add refresh-token reuse detection and revoke all sessions on password reset/account suspension.
-- Family access endpoint is present; apply membership and role authorization to every future family-scoped controller.
-- Add API integration tests against SQL Server and end-to-end auth tests.
-- Validate family code generation collision handling at database insert and retry on unique constraint.
-- Add transactional outbox/audit records and reliable notification delivery.
-- Add CORS, HTTPS certificate trust on local mobile devices, structured redacted logging and secrets handling.
-- No MAUI screens or React web UI have been committed in this initial backend slice.
+- Add separate verification challenges for both mobile and email when both are supplied.
+- Add OTP resend cooldown, account lockout and production abuse controls.
+- Add refresh-token reuse detection and revoke sessions on password reset/account suspension.
+- Add SQL Server integration tests and end-to-end auth tests.
+- Add audit records and reliable notification delivery.
+- Add CORS, structured redacted logging and production secrets handling.
+- Photo albums/media and client applications remain later phases.

@@ -10,6 +10,7 @@ public sealed class FamilyConnectDbContext(DbContextOptions<FamilyConnectDbConte
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<FamilyGroup> FamilyGroups => Set<FamilyGroup>();
     public DbSet<FamilyGroupMembership> FamilyGroupMemberships => Set<FamilyGroupMembership>();
+    public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -61,6 +62,31 @@ public sealed class FamilyConnectDbContext(DbContextOptions<FamilyConnectDbConte
             e.Property(x => x.Status).HasMaxLength(20).IsRequired();
             e.HasIndex(x => new { x.FamilyGroupId, x.UserId }).IsUnique();
             e.HasIndex(x => new { x.UserId, x.Status });
+        });
+        b.Entity<FamilyMember>(e =>
+        {
+            e.ToTable("FamilyMembers", table =>
+            {
+                table.HasCheckConstraint("CK_FamilyMembers_Gender",
+                    "[Gender] IS NULL OR [Gender] IN ('Male','Female','Other','PreferNotToSay')");
+                table.HasCheckConstraint("CK_FamilyMembers_Status",
+                    "[Status] IN ('Active','Deceased','Archived')");
+                table.HasCheckConstraint("CK_FamilyMembers_Dates",
+                    "[DateOfBirth] IS NULL OR [DateOfDeath] IS NULL OR [DateOfDeath] >= [DateOfBirth]");
+            });
+            e.HasKey(x => x.FamilyMemberId);
+            e.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.TamilName).HasMaxLength(200);
+            e.Property(x => x.Gender).HasMaxLength(20);
+            e.Property(x => x.PlaceOfBirth).HasMaxLength(150);
+            e.Property(x => x.ContactNumber).HasMaxLength(30);
+            e.Property(x => x.Email).HasMaxLength(254);
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.HasIndex(x => new { x.FamilyGroupId, x.Status, x.FullName });
+            e.HasIndex(x => new { x.FamilyGroupId, x.LinkedUserId }).IsUnique()
+                .HasFilter("[LinkedUserId] IS NOT NULL AND [Status] <> 'Archived'");
+            e.HasOne<FamilyGroup>().WithMany().HasForeignKey(x => x.FamilyGroupId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.LinkedUserId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
