@@ -102,7 +102,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   return <section className="tree-panel visual-editor">
     <div className="tree-toolbar">
       <div><span className="eyebrow">FAMILY RELATIONSHIP EDITOR</span><p>{relationships.length} saved relationships · {canEdit ? 'Drag cards to arrange the tree. Use Connect to create relationships.' : 'Drag cards to arrange your view, or select a person to view their profile and relationships.'}</p></div>
-      {canEdit && <div className="editor-actions"><button className="secondary-btn" onClick={() => { setConnectFrom(''); setTargetId(''); setKind('ParentChild'); setShowForm(true); }}><Plus size={15}/> Add relationship</button><span className="editor-hint"><Move size={14}/> Drag cards to arrange</span></div>}
+      <div className="editor-actions">{canEdit && <button className="secondary-btn" onClick={() => { setConnectFrom(''); setTargetId(''); setKind('ParentChild'); setShowForm(true); }}><Plus size={15}/> Add relationship</button>}<span className="editor-hint"><Move size={14}/> Drag cards to arrange</span></div>
     </div>
     {error && <div className="alert">{error}</div>}
     {connectFrom && <div className="connection-banner">Choose the second person to connect to <strong>{memberMap.get(connectFrom)?.fullName}</strong>. <button onClick={() => setConnectFrom('')}>Cancel</button></div>}
