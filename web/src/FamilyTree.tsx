@@ -18,6 +18,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<FamilyMember | null>(null);
+  const [draggedId, setDraggedId] = useState('');
   const activeMembers = members.filter(m => m.status !== 'Archived');
   const memberMap = useMemo(() => new Map(activeMembers.map(m => [m.familyMemberId,m])), [activeMembers]);
   const parentGroups = useMemo(() => {
@@ -46,8 +47,19 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     relationships.filter(r => r.relationshipType === 'ParentChild' && parentIds.includes(r.fromFamilyMemberId) && r.toFamilyMemberId !== profile.familyMemberId).forEach(r => add('Sibling', r.toFamilyMemberId));
     return rows;
   })() : [];
-  const personButton = (m: FamilyMember, subtitle: string) => <button type="button" className="tree-person tree-person-button" key={m.familyMemberId} onClick={() => setProfile(m)} aria-label={`View ${m.fullName} profile`}>
-    <span className="tree-avatar"><Users size={18}/></span><strong>{name(m)}</strong><small>{subtitle}</small>
+  const personButton = (m: FamilyMember, subtitle: string) => <button
+    type="button"
+    draggable={canEdit}
+    className={`tree-person tree-person-button ${canEdit?'tree-draggable':''} ${draggedId===m.familyMemberId?'tree-dragging':''}`}
+    key={m.familyMemberId}
+    onClick={() => setProfile(m)}
+    onDragStart={e=>{setDraggedId(m.familyMemberId);e.dataTransfer.effectAllowed='link';e.dataTransfer.setData('text/plain',m.familyMemberId);}}
+    onDragEnd={()=>setDraggedId('')}
+    onDragOver={e=>{if(canEdit&&draggedId&&draggedId!==m.familyMemberId)e.preventDefault();}}
+    onDrop={e=>{e.preventDefault();const source=e.dataTransfer.getData('text/plain')||draggedId;if(canEdit&&source&&source!==m.familyMemberId){setParentId(source);setChildId(m.familyMemberId);setKind('ParentChild');setError('');setShowForm(true);}setDraggedId('');}}
+    aria-label={canEdit?`Drag ${m.fullName} onto another member to create a relationship, or click to view profile`:`View ${m.fullName} profile`}
+  >
+    <span className="tree-avatar"><Users size={18}/></span><strong>{name(m)}</strong><small>{canEdit?'↕ Drag onto another person':subtitle}</small>
   </button>;
   const submit = async () => {
     if (!parentId || !childId || parentId === childId) return;
@@ -65,7 +77,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   };
   const name = (m:FamilyMember) => <>{m.fullName}{m.tamilName && <small>{m.tamilName}</small>}</>;
   return <section className="tree-panel">
-    <div className="tree-toolbar"><div><span className="eyebrow">FAMILY RELATIONSHIPS</span><p>{relationships.length} saved relationships · siblings are derived from shared parents</p></div>{canEdit&&<button className="primary-btn" onClick={()=>setShowForm(true)}><Plus size={16}/>Add relationship</button>}</div>
+    <div className="tree-toolbar"><div><span className="eyebrow">FAMILY RELATIONSHIPS</span><p>{relationships.length} saved relationships · {canEdit?'Drag one person onto another to connect them':'siblings are derived from shared parents'}</p></div>{canEdit&&<button className="primary-btn" onClick={()=>setShowForm(true)}><Plus size={16}/>Add relationship</button>}</div>
     {error&&<div className="alert">{error}</div>}
     {parentGroups.map(group=><div className="tree-family" key={group.parent.familyMemberId}>
       {personButton(group.parent, 'Parent · View profile')}
@@ -78,6 +90,6 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     {isolated.length>0&&<div className="tree-unlinked"><h3>Other family members</h3><div>{isolated.map(m=>personButton(m, m.status + ' · View profile'))}</div></div>}
     {relationships.length===0&&<div className="tree-empty"><GitBranch size={30}/><strong>No relationships added yet</strong><span>Add parent-child or spouse links to build the family tree.</span></div>}
     {profile&&<div className="modal-backdrop" onClick={()=>setProfile(null)}><div className="modal profile-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setProfile(null)}><X size={16}/></button><span className="eyebrow">FAMILY MEMBER PROFILE</span><div className="profile-heading"><span className="tree-avatar"><Users size={22}/></span><div><h2>{profile.fullName}</h2>{profile.tamilName&&<p>{profile.tamilName}</p>}</div></div><div className="profile-facts">{profile.gender&&<div><small>Gender</small><strong>{profile.gender}</strong></div>}{profile.dateOfBirth&&<div><small>Date of birth</small><strong>{new Date(profile.dateOfBirth+'T00:00:00').toLocaleDateString()}</strong></div>}{profile.dateOfDeath&&<div><small>Date of death</small><strong>{new Date(profile.dateOfDeath+'T00:00:00').toLocaleDateString()}</strong></div>}{profile.placeOfBirth&&<div><small>Place of birth</small><strong>{profile.placeOfBirth}</strong></div>}{profile.contactNumber&&<div><small>Contact</small><strong>{profile.contactNumber}</strong></div>}{profile.email&&<div><small>Email</small><strong>{profile.email}</strong></div>}<div><small>Status</small><strong>{profile.status}</strong></div></div><div className="profile-relatives"><h3>Family relationships</h3>{profileRelations.length===0?<p className="muted">No linked relationships recorded for this person.</p>:profileRelations.map((r,i)=><div className="profile-relative" key={r.label+'-'+r.member.familyMemberId+'-'+i}><span>{r.label}</span><strong>{r.member.fullName}</strong>{r.member.tamilName&&<small>{r.member.tamilName}</small>}</div>)}</div><div className="modal-actions"><button className="secondary-btn" onClick={()=>setProfile(null)}>Close</button></div></div></div>}
-    {showForm&&<div className="modal-backdrop" onClick={()=>setShowForm(false)}><div className="modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowForm(false)}><X size={16}/></button><span className="eyebrow">FAMILY RELATIONSHIP</span><h2>Add relationship</h2><label>Relationship type<select value={kind} onChange={e=>setKind(e.target.value as 'ParentChild'|'Spouse')}><option value="ParentChild">Parent → Child</option><option value="Spouse">Spouse</option></select></label><label>{kind==='ParentChild'?'Parent':'First spouse'}<select value={parentId} onChange={e=>setParentId(e.target.value)}><option value="">Select member</option>{activeMembers.map(m=><option key={m.familyMemberId} value={m.familyMemberId}>{m.fullName}</option>)}</select></label><label>{kind==='ParentChild'?'Child':'Second spouse'}<select value={childId} onChange={e=>setChildId(e.target.value)}><option value="">Select member</option>{activeMembers.filter(m=>m.familyMemberId!==parentId).map(m=><option key={m.familyMemberId} value={m.familyMemberId}>{m.fullName}</option>)}</select></label><div className="modal-actions"><button className="secondary-btn" onClick={()=>setShowForm(false)}>Cancel</button><button className="primary-btn" disabled={busy||!parentId||!childId} onClick={submit}>Save relationship</button></div></div></div>}
+    {showForm&&<div className="modal-backdrop" onClick={()=>setShowForm(false)}><div className="modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowForm(false)}><X size={16}/></button><span className="eyebrow">FAMILY RELATIONSHIP</span><h2>Add relationship</h2><label>Relationship type<select value={kind} onChange={e=>setKind(e.target.value as 'ParentChild'|'Spouse')}><option value="ParentChild">Dragged person is Parent → dropped person is Child</option><option value="Spouse">Spouse (either direction)</option></select></label><label>{kind==='ParentChild'?'Parent':'First spouse'}<select value={parentId} onChange={e=>setParentId(e.target.value)}><option value="">Select member</option>{activeMembers.map(m=><option key={m.familyMemberId} value={m.familyMemberId}>{m.fullName}</option>)}</select></label><label>{kind==='ParentChild'?'Child':'Second spouse'}<select value={childId} onChange={e=>setChildId(e.target.value)}><option value="">Select member</option>{activeMembers.filter(m=>m.familyMemberId!==parentId).map(m=><option key={m.familyMemberId} value={m.familyMemberId}>{m.fullName}</option>)}</select></label><div className="modal-actions"><button className="secondary-btn" onClick={()=>setShowForm(false)}>Cancel</button><button className="primary-btn" disabled={busy||!parentId||!childId} onClick={submit}>Save relationship</button></div></div></div>}
   </section>;
 }
