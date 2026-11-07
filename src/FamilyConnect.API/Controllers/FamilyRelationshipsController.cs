@@ -30,7 +30,12 @@ public sealed class FamilyRelationshipsController(FamilyRelationshipService rela
         catch (UnauthorizedAccessException ex) when (ex.Message == "ACTIVE_FAMILY_MEMBERSHIP_REQUIRED") { return NotFound(); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (ArgumentException ex) { return BadRequest(new ApiError("VALIDATION_ERROR", ex.Message)); }
-        catch (InvalidOperationException ex) { return Conflict(new ApiError(ex.Message, "The relationship already exists.")); }
+        catch (InvalidOperationException ex) when (ex.Message == "RELATIONSHIP_ALREADY_EXISTS")
+        {
+            return Conflict(new ApiError(
+                "RELATIONSHIP_ALREADY_EXISTS",
+                "The relationship already exists."));
+        }
     }
 
     [HttpDelete("{relationshipId:guid}")]
