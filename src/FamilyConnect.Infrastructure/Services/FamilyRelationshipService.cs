@@ -13,7 +13,13 @@ public sealed class FamilyRelationshipService(FamilyConnectDbContext db)
         Guid userId, Guid familyGroupId, CancellationToken ct)
     {
         await EnsureAccessAsync(userId, familyGroupId, ct);
-        return await Query(familyGroupId).OrderBy(x => x.FromFullName).ThenBy(x => x.ToFullName).ToListAsync(ct);
+        // Materialize the family-scoped result before sorting by DTO properties.
+        // EF Core cannot translate OrderBy over the constructed response record.
+        var relationships = await Query(familyGroupId).ToListAsync(ct);
+        return relationships
+            .OrderBy(x => x.FromFullName)
+            .ThenBy(x => x.ToFullName)
+            .ToList();
     }
 
     public async Task<FamilyRelationshipResponse> CreateAsync(
