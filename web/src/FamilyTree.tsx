@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { GitBranch, Link2, Move, Plus, Trash2, Users, X } from 'lucide-react';
 import { api, FamilyMember, FamilyRelationship } from './api';
 
@@ -35,7 +36,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     return rows;
   }, [profile, relationships, memberMap]);
 
-  const startMove = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
+  const startMove = (event: ReactPointerEvent<HTMLDivElement>, id: string) => {
     if (!canEdit || (event.target as HTMLElement).closest('button')) return;
     const rect = workspaceRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -75,6 +76,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     finally { setBusy(false); }
   };
   const cardCenter = (id: string) => { const p = point(id); return { x: p.x + 92, y: p.y + 48 }; };
+  const workspaceHeight = Math.max(520, ...active.map((m, i) => pointFor(m.familyMemberId, i).y + 150));
 
   return <section className="tree-panel visual-editor">
     <div className="tree-toolbar">
@@ -83,7 +85,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     </div>
     {error && <div className="alert">{error}</div>}
     {connectFrom && <div className="connection-banner">Choose the second person to connect to <strong>{memberMap.get(connectFrom)?.fullName}</strong>. <button onClick={() => setConnectFrom('')}>Cancel</button></div>}
-    <div className="relationship-workspace" ref={workspaceRef} onPointerMove={moveCard} onPointerUp={finishMove} onPointerCancel={finishMove}>
+    <div className="relationship-workspace" style={{ minHeight: workspaceHeight }} ref={workspaceRef} onPointerMove={moveCard} onPointerUp={finishMove} onPointerCancel={finishMove}>
       <svg className="relationship-lines" aria-hidden="true">
         {relationships.map(r => {
           const a = memberMap.has(r.fromFamilyMemberId) ? cardCenter(r.fromFamilyMemberId) : null;
