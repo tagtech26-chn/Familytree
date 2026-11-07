@@ -38,6 +38,7 @@ builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<FamilyGroupService>();
 builder.Services.AddScoped<FamilyMemberService>();
+builder.Services.AddScoped<FamilyRelationshipService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IOtpSender, DevelopmentOtpSender>();
 var signingKey = builder.Configuration["Jwt:SigningKey"]
