@@ -7,3 +7,5 @@
 @media(max-width:680px){.profile-facts{grid-template-columns:1fr 1fr}.profile-heading h2{font-size:21px}}
 
 .tree-draggable{cursor:grab;touch-action:pan-y}.tree-draggable:active{cursor:grabbing}.tree-dragging{opacity:.48;transform:scale(.97);border-style:dashed!important}.tree-draggable:hover{border-color:#9bb69a}.tree-person-button small{line-height:1.35}.tree-toolbar p{max-width:520px}
+
+.tree-person-button{user-select:none;-webkit-user-select:none}.tree-person-button[role=button]{cursor:pointer}.tree-person-button[draggable=true]{cursor:grab}.tree-person-button[draggable=true]:active{cursor:grabbing}.tree-person-button[draggable=true]:focus-visible{outline:3px solid #9bb99b;outline-offset:3px}
