@@ -13,6 +13,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   const [positions, setPositions] = useState<Record<string, Point>>({});
   const [drag, setDrag] = useState<DragState>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const suppressCardClick = useRef(false);
   const [connectFrom, setConnectFrom] = useState('');
   const [targetId, setTargetId] = useState('');
   const [kind, setKind] = useState<'ParentChild' | 'Spouse'>('ParentChild');
@@ -48,6 +49,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     if (!drag) return;
     const rect = workspaceRef.current?.getBoundingClientRect();
     if (!rect) return;
+    suppressCardClick.current = true;
     const x = Math.max(8, event.clientX - rect.left - drag.offsetX);
     const y = Math.max(8, event.clientY - rect.top - drag.offsetY);
     setPositions(old => ({ ...old, [drag.id]: { x, y } }));
@@ -96,7 +98,7 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
       {active.map((m, i) => {
         const p = pointFor(m.familyMemberId, i);
         const selected = connectFrom === m.familyMemberId;
-        return <div key={m.familyMemberId} data-family-member-id={m.familyMemberId} className={`editor-person ${selected ? 'connection-source' : ''} ${drag?.id === m.familyMemberId ? 'moving' : ''}`} style={{ left: p.x, top: p.y }} onPointerDown={e => startMove(e, m.familyMemberId)} onClick={() => { if (connectFrom) chooseConnectionTarget(m.familyMemberId); else setProfile(m); }}>
+        return <div key={m.familyMemberId} data-family-member-id={m.familyMemberId} className={`editor-person ${selected ? 'connection-source' : ''} ${drag?.id === m.familyMemberId ? 'moving' : ''}`} style={{ left: p.x, top: p.y }} onPointerDown={e => startMove(e, m.familyMemberId)} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } if (connectFrom) chooseConnectionTarget(m.familyMemberId); else setProfile(m); }}>
           <div className="editor-person-main"><span className="tree-avatar"><Users size={18}/></span><strong>{m.fullName}</strong>{m.tamilName && <small>{m.tamilName}</small>}<em>{m.status}</em></div>
           {canEdit && <button className="connect-handle" title={connectFrom === m.familyMemberId ? 'Selected as first person' : 'Select this person to connect'} onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); chooseConnectionTarget(m.familyMemberId); }}><Link2 size={14}/>{selected ? 'Selected' : 'Connect'}</button>}
         </div>;
