@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GitBranch, Plus, Trash2, Users, X } from 'lucide-react';
 import { api, FamilyMember, FamilyRelationship } from './api';
 
@@ -19,6 +19,45 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<FamilyMember | null>(null);
   const [draggedId, setDraggedId] = useState('');
+  const pointerDrag = useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  useEffect(() => {
+    if (!canEdit) return;
+    const onMove = (event: PointerEvent) => {
+      const drag = pointerDrag.current;
+      if (!drag) return;
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 8) {
+        drag.moved = true;
+        setDraggedId(drag.id);
+      }
+    };
+    const onUp = (event: PointerEvent) => {
+      const drag = pointerDrag.current;
+      if (!drag) return;
+      pointerDrag.current = null;
+      if (!drag.moved) { setDraggedId(''); return; }
+      suppressClick.current = true;
+      window.setTimeout(() => { suppressClick.current = false; }, 0);
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-family-member-id]');
+      const targetId = target?.dataset.familyMemberId;
+      if (targetId && targetId !== drag.id) {
+        setParentId(drag.id);
+        setChildId(targetId);
+        setKind('ParentChild');
+        setError('');
+        setShowForm(true);
+      }
+      setDraggedId('');
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+    };
+  }, [canEdit]);
   const activeMembers = members.filter(m => m.status !== 'Archived');
   const memberMap = useMemo(() => new Map(activeMembers.map(m => [m.familyMemberId,m])), [activeMembers]);
   const parentGroups = useMemo(() => {
@@ -50,19 +89,15 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   const personButton = (m: FamilyMember, subtitle: string) => <div
     role="button"
     tabIndex={0}
-    draggable={canEdit}
+    data-family-member-id={m.familyMemberId}
     className={`tree-person tree-person-button ${canEdit?'tree-draggable':''} ${draggedId===m.familyMemberId?'tree-dragging':''}`}
     key={m.familyMemberId}
-    onClick={() => setProfile(m)}
+    onClick={() => { if (!suppressClick.current) setProfile(m); }}
     onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setProfile(m);}}}
-    onDragStart={e=>{e.dataTransfer.clearData();e.dataTransfer.setData('text/plain',m.familyMemberId);e.dataTransfer.effectAllowed='move';setDraggedId(m.familyMemberId);}}
-    onDragEnd={()=>setDraggedId('')}
-    onDragOver={e=>{if(canEdit&&e.dataTransfer.types.includes('text/plain')){e.preventDefault();e.dataTransfer.dropEffect='move';}}}
-    onDragEnter={e=>{if(canEdit&&e.dataTransfer.types.includes('text/plain'))e.preventDefault();}}
-    onDrop={e=>{e.preventDefault();e.stopPropagation();const source=e.dataTransfer.getData('text/plain')||draggedId;if(canEdit&&source&&source!==m.familyMemberId){setParentId(source);setChildId(m.familyMemberId);setKind('ParentChild');setError('');setShowForm(true);}setDraggedId('');}}
+    onPointerDown={e=>{if(canEdit&&e.button===0){pointerDrag.current={id:m.familyMemberId,x:e.clientX,y:e.clientY,moved:false};}}}
     aria-label={canEdit?`Drag ${m.fullName} onto another member to create a relationship, or click to view profile`:`View ${m.fullName} profile`}
   >
-    <span className="tree-avatar"><Users size={18}/></span><strong>{name(m)}</strong><small>{canEdit?'Drag onto another person':subtitle}</small>
+    <span className="tree-avatar"><Users size={18}/></span><strong>{name(m)}</strong><small>{canEdit?"Drag onto another person":subtitle}</small>
   </div>;
   const submit = async () => {
     if (!parentId || !childId || parentId === childId) return;
