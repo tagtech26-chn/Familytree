@@ -47,20 +47,23 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
     relationships.filter(r => r.relationshipType === 'ParentChild' && parentIds.includes(r.fromFamilyMemberId) && r.toFamilyMemberId !== profile.familyMemberId).forEach(r => add('Sibling', r.toFamilyMemberId));
     return rows;
   })() : [];
-  const personButton = (m: FamilyMember, subtitle: string) => <button
-    type="button"
+  const personButton = (m: FamilyMember, subtitle: string) => <div
+    role="button"
+    tabIndex={0}
     draggable={canEdit}
     className={`tree-person tree-person-button ${canEdit?'tree-draggable':''} ${draggedId===m.familyMemberId?'tree-dragging':''}`}
     key={m.familyMemberId}
     onClick={() => setProfile(m)}
-    onDragStart={e=>{setDraggedId(m.familyMemberId);e.dataTransfer.effectAllowed='link';e.dataTransfer.setData('text/plain',m.familyMemberId);}}
+    onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setProfile(m);}}}
+    onDragStart={e=>{e.dataTransfer.clearData();e.dataTransfer.setData('text/plain',m.familyMemberId);e.dataTransfer.effectAllowed='move';setDraggedId(m.familyMemberId);}}
     onDragEnd={()=>setDraggedId('')}
-    onDragOver={e=>{if(canEdit&&draggedId&&draggedId!==m.familyMemberId)e.preventDefault();}}
-    onDrop={e=>{e.preventDefault();const source=e.dataTransfer.getData('text/plain')||draggedId;if(canEdit&&source&&source!==m.familyMemberId){setParentId(source);setChildId(m.familyMemberId);setKind('ParentChild');setError('');setShowForm(true);}setDraggedId('');}}
+    onDragOver={e=>{if(canEdit&&e.dataTransfer.types.includes('text/plain')){e.preventDefault();e.dataTransfer.dropEffect='move';}}}
+    onDragEnter={e=>{if(canEdit&&e.dataTransfer.types.includes('text/plain'))e.preventDefault();}}
+    onDrop={e=>{e.preventDefault();e.stopPropagation();const source=e.dataTransfer.getData('text/plain')||draggedId;if(canEdit&&source&&source!==m.familyMemberId){setParentId(source);setChildId(m.familyMemberId);setKind('ParentChild');setError('');setShowForm(true);}setDraggedId('');}}
     aria-label={canEdit?`Drag ${m.fullName} onto another member to create a relationship, or click to view profile`:`View ${m.fullName} profile`}
   >
-    <span className="tree-avatar"><Users size={18}/></span><strong>{name(m)}</strong><small>{canEdit?'↕ Drag onto another person':subtitle}</small>
-  </button>;
+    <span className="tree-avatar"><Users size={18}/></span><strong>{name(m)}</strong><small>{canEdit?'Drag onto another person':subtitle}</small>
+  </div>;
   const submit = async () => {
     if (!parentId || !childId || parentId === childId) return;
     setBusy(true); setError('');
