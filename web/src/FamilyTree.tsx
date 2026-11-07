@@ -22,7 +22,25 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const pointFor = (id: string, index: number): Point => positions[id] || ({ x: 28 + (index % 4) * 230, y: 28 + Math.floor(index / 4) * 165 });
+  const autoLayout = useMemo(() => {
+    const layout: Record<string, Point> = {};
+    const edges = relationships.filter(r => r.relationshipType === 'ParentChild' && memberMap.has(r.fromFamilyMemberId) && memberMap.has(r.toFamilyMemberId));
+    const groups = new Map<string, string[]>();
+    edges.forEach(r => groups.set(r.fromFamilyMemberId, [...(groups.get(r.fromFamilyMemberId) || []), r.toFamilyMemberId]));
+    const childIds = new Set(edges.map(r => r.toFamilyMemberId));
+    const roots = [...groups.keys()].filter(id => !childIds.has(id));
+    let cursorX = 28;
+    roots.forEach(parentId => {
+      const children = [...new Set(groups.get(parentId) || [])];
+      const width = Math.max(184, children.length * 230 - 46);
+      layout[parentId] = { x: cursorX + (width - 184) / 2, y: 28 };
+      children.forEach((childId, i) => { layout[childId] = { x: cursorX + i * 230, y: 205 }; });
+      cursorX += width + 90;
+    });
+    active.filter(m => !layout[m.familyMemberId]).forEach((m, i) => { layout[m.familyMemberId] = { x: 28 + i * 230, y: 390 }; });
+    return layout;
+  }, [active, relationships, memberMap]);
+  const pointFor = (id: string, index: number): Point => positions[id] || autoLayout[id] || ({ x: 28 + (index % 4) * 230, y: 28 + Math.floor(index / 4) * 165 });
   const positionIndex = (id: string) => active.findIndex(m => m.familyMemberId === id);
   const point = (id: string) => pointFor(id, positionIndex(id));
   const relatives = useMemo(() => {
@@ -38,14 +56,14 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   }, [profile, relationships, memberMap]);
 
   const startMove = (event: ReactPointerEvent<HTMLDivElement>, id: string) => {
-    if (!canEdit || (event.target as HTMLElement).closest('button')) return;
+    if ((event.target as HTMLElement).closest('button')) return;
     const rect = workspaceRef.current?.getBoundingClientRect();
     if (!rect) return;
     const p = point(id);
     setDrag({ id, offsetX: event.clientX - rect.left - p.x, offsetY: event.clientY - rect.top - p.y });
     event.currentTarget.setPointerCapture(event.pointerId);
   };
-  const moveCard = (event: React.PointerEvent<HTMLDivElement>) => {
+  const moveCard = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!drag) return;
     const rect = workspaceRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -79,15 +97,16 @@ export default function FamilyTree({ familyId, members, relationships, canEdit, 
   };
   const cardCenter = (id: string) => { const p = point(id); return { x: p.x + 92, y: p.y + 48 }; };
   const workspaceHeight = Math.max(520, ...active.map((m, i) => pointFor(m.familyMemberId, i).y + 150));
+  const workspaceWidth = Math.max(1000, ...active.map((m, i) => pointFor(m.familyMemberId, i).x + 230));
 
   return <section className="tree-panel visual-editor">
     <div className="tree-toolbar">
-      <div><span className="eyebrow">FAMILY RELATIONSHIP EDITOR</span><p>{relationships.length} saved relationships · {canEdit ? 'Move cards freely, then select Connect on a person and choose another person.' : 'Select a person to view their profile and relationships.'}</p></div>
+      <div><span className="eyebrow">FAMILY RELATIONSHIP EDITOR</span><p>{relationships.length} saved relationships · {canEdit ? 'Drag cards to arrange the tree. Use Connect to create relationships.' : 'Drag cards to arrange your view, or select a person to view their profile and relationships.'}</p></div>
       {canEdit && <div className="editor-actions"><button className="secondary-btn" onClick={() => { setConnectFrom(''); setTargetId(''); setKind('ParentChild'); setShowForm(true); }}><Plus size={15}/> Add relationship</button><span className="editor-hint"><Move size={14}/> Drag cards to arrange</span></div>}
     </div>
     {error && <div className="alert">{error}</div>}
     {connectFrom && <div className="connection-banner">Choose the second person to connect to <strong>{memberMap.get(connectFrom)?.fullName}</strong>. <button onClick={() => setConnectFrom('')}>Cancel</button></div>}
-    <div className="relationship-workspace" style={{ minHeight: workspaceHeight }} ref={workspaceRef} onPointerMove={moveCard} onPointerUp={finishMove} onPointerCancel={finishMove}>
+    <div className="relationship-workspace" style={{ minHeight: workspaceHeight, minWidth: workspaceWidth }} ref={workspaceRef} onPointerMove={moveCard} onPointerUp={finishMove} onPointerCancel={finishMove}>
       <svg className="relationship-lines" aria-hidden="true">
         {relationships.map(r => {
           const a = memberMap.has(r.fromFamilyMemberId) ? cardCenter(r.fromFamilyMemberId) : null;
