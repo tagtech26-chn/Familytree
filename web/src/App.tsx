@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Users, UserRound, Plus, LogOut, Languages, Search, ChevronDown, Heart, ShieldCheck, Clock3, Check, X, Menu, ArrowRight, KeyRound, Mail, Phone, Sparkles } from 'lucide-react';
-import { api, clearTokens, Family, FamilyMember, hasSession, saveTokens } from './api';
+import { Users, UserRound, Plus, LogOut, Languages, Search, GitBranch, Heart, ShieldCheck, Clock3, Check, X, Menu, ArrowRight, KeyRound, Mail, Phone, Sparkles } from 'lucide-react';
+import { api, clearTokens, Family, FamilyMember, FamilyRelationship, hasSession, saveTokens } from './api';
+import FamilyTree from './FamilyTree';
 
 type Lang = 'en' | 'ta';
 const copy = {
@@ -24,6 +25,8 @@ export default function App() {
   const [families,setFamilies]=useState<Family[]>([]);
   const [selected,setSelected]=useState<Family|null>(null);
   const [members,setMembers]=useState<FamilyMember[]>([]);
+  const [relationships,setRelationships]=useState<FamilyRelationship[]>([]);
+  const [directoryView,setDirectoryView]=useState<'list'|'tree'>('list');
   const [requests,setRequests]=useState<Array<{membershipId:string;userId:string;mobileNumber?:string;email?:string;requestedAtUtc:string}>>([]);
   const [query,setQuery]=useState('');
   const [showFamilyForm,setShowFamilyForm]=useState(false);
@@ -39,14 +42,15 @@ export default function App() {
   const filtered=useMemo(()=>members.filter(m=>`${m.fullName} ${m.tamilName||''}`.toLowerCase().includes(query.toLowerCase())),[members,query]);
   const refreshFamilies=async()=>{const data=await api.families();setFamilies(data);if(selected){const next=data.find(f=>f.familyGroupId===selected.familyGroupId);setSelected(next||data[0]||null);}else if(data.length)setSelected(data[0]);};
   const refreshMembers=async(familyId:string)=>{setMembers(await api.members(familyId));};
+  const refreshRelationships=async(familyId:string)=>{setRelationships(await api.relationships(familyId));};
   const refreshRequests=async(family:Family)=>{if(family.role==='Owner'){try{setRequests(await api.joinRequests(family.familyGroupId));}catch{setRequests([]);}}else setRequests([]);};
   useEffect(()=>{if(signedIn){refreshFamilies().catch(e=>setError(e.message));}},[signedIn]);
-  useEffect(()=>{if(selected){refreshMembers(selected.familyGroupId).catch(e=>setError(e.message));refreshRequests(selected);}},[selected?.familyGroupId]);
+  useEffect(()=>{if(selected){refreshMembers(selected.familyGroupId).catch(e=>setError(e.message));refreshRelationships(selected.familyGroupId).catch(e=>setError(e.message));refreshRequests(selected);}},[selected?.familyGroupId]);
   const run=async(fn:()=>Promise<unknown>,success?:()=>void)=>{setError('');setBusy(true);try{await fn();success?.();}catch(e){setError(e instanceof Error?e.message:'Something went wrong');}finally{setBusy(false);}};
   const submitAuth=()=>run(async()=>{const tokens=await api.login(login,password);saveTokens(tokens);setSignedIn(true);},()=>{setPassword('');});
   const register=()=>run(async()=>{const result=await api.register(mobile,email,password,preferred);setDestination(mobile||email);setMode('verify');if(!result.verificationRequired)throw new Error('Verification is not required; please sign in.');});
   const verify=()=>run(async()=>{const tokens=await api.verifyOtp(destination,otp);saveTokens(tokens);setSignedIn(true);},()=>setOtp(''));
-  const logout=()=>run(()=>api.logout(),()=>{setSignedIn(false);setFamilies([]);setSelected(null);setMembers([]);setMode('login');});
+  const logout=()=>run(()=>api.logout(),()=>{setSignedIn(false);setFamilies([]);setSelected(null);setMembers([]);setRelationships([]);setMode('login');});
   const createFamily=()=>run(async()=>{await api.createFamily(familyName,familyDescription,lang);setShowFamilyForm(false);setFamilyName('');setFamilyDescription('');await refreshFamilies();});
   const join=()=>run(async()=>{const result=await api.joinFamily(groupCode);setShowJoinForm(false);setGroupCode('');setError(`${result.name}: ${result.membershipStatus}`);});
   const saveMember=()=>run(async()=>{if(!selected)return;const payload={...memberForm,dateOfDeath:memberForm.dateOfDeath||null,dateOfBirth:memberForm.dateOfBirth||null,linkedUserId:editing?.linkedUserId||null,...(editing?{status:editing.status}:{})};if(editing)await api.updateMember(selected.familyGroupId,editing.familyMemberId,payload);else await api.createMember(selected.familyGroupId,payload);setShowMemberForm(false);setEditing(null);await refreshMembers(selected.familyGroupId);});
@@ -67,8 +71,8 @@ export default function App() {
     {error&&<div className="alert workspace-alert">{error}<button onClick={()=>setError('')}><X size={16}/></button></div>}
     <section className="welcome-banner"><div><span className="eyebrow">YOUR PRIVATE FAMILY SPACE</span><h2>{selected?.name||t.dashboard}</h2><p>{selected?.description||'Bring every branch of your family story together.'}</p>{selected&&<div className="banner-meta"><span><KeyRound size={14}/>{t.familyCode}: <strong>{selected.groupCode}</strong></span><span><ShieldCheck size={14}/>{t.role}: <strong>{selected.role}</strong></span></div>}</div><div className="banner-symbol">✳</div></section>
     {families.length===0?<section className="empty-state"><div className="empty-icon"><Users size={28}/></div><h3>{t.noFamilies}</h3><p>Create your first family group or join one with an invite code.</p><div className="inline-actions"><button className="primary-btn" onClick={()=>setShowFamilyForm(true)}><Plus size={16}/>{t.newFamily}</button><button className="secondary-btn" onClick={()=>setShowJoinForm(true)}>{t.joinFamily}</button></div></section>
-    :<><div className="section-heading"><div><span className="eyebrow">YOUR PEOPLE</span><h2>{t.members}</h2></div><div className="heading-actions"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.search}/></div>{canEdit&&<button className="primary-btn" onClick={openNewMember}><Plus size={17}/>{t.addMember}</button>}</div></div>
-    <div className="member-grid">{filtered.map(m=><article className="member-card" key={m.familyMemberId}><div className="member-card-top"><div className="member-avatar">{m.fullName.trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase()}</div><span className={m.status==='Deceased'?'status deceased': 'status'}>{m.status}</span></div><h3>{m.fullName}</h3>{m.tamilName&&<p className="tamil-name">{m.tamilName}</p>}<div className="member-detail">{m.dateOfBirth&&<span>{new Date(m.dateOfBirth+'T00:00:00').toLocaleDateString()}</span>}{m.placeOfBirth&&<span>{m.placeOfBirth}</span>}</div>{canEdit&&<button className="text-action" onClick={()=>editMember(m)}>{t.edit}<ArrowRight size={14}/></button>}</article>)}
+    :<><div className="section-heading"><div><span className="eyebrow">YOUR PEOPLE</span><h2>{t.members}</h2></div><div className="heading-actions"><div className="view-switch"><button className={directoryView==='list'?'selected':''} onClick={()=>setDirectoryView('list')}><Users size={15}/>List</button><button className={directoryView==='tree'?'selected':''} onClick={()=>setDirectoryView('tree')}><GitBranch size={15}/>Tree</button></div><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.search}/></div>{canEdit&&<button className="primary-btn" onClick={openNewMember}><Plus size={17}/>{t.addMember}</button>}</div></div>
+    {directoryView==='tree'&&selected?<FamilyTree familyId={selected.familyGroupId} members={members} relationships={relationships} canEdit={canEdit} onChanged={()=>refreshRelationships(selected.familyGroupId)}/>:<div className="member-grid">{filtered.map(m=><article className="member-card" key={m.familyMemberId}><div className="member-card-top"><div className="member-avatar">{m.fullName.trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase()}</div><span className={m.status==='Deceased'?'status deceased': 'status'}>{m.status}</span></div><h3>{m.fullName}</h3>{m.tamilName&&<p className="tamil-name">{m.tamilName}</p>}<div className="member-detail">{m.dateOfBirth&&<span>{new Date(m.dateOfBirth+'T00:00:00').toLocaleDateString()}</span>}{m.placeOfBirth&&<span>{m.placeOfBirth}</span>}</div>{canEdit&&<button className="text-action" onClick={()=>editMember(m)}>{t.edit}<ArrowRight size={14}/></button>}</article>)}
     {filtered.length===0&&<div className="empty-inline">{members.length?t.noMembers.replace('No profiles yet. Add the first person to your family.','No matching profiles found.') : t.noMembers}</div>}</div>
     {selected?.role==='Owner'&&requests.length>0&&<section className="requests-panel"><div className="section-heading"><div><span className="eyebrow">FAMILY ACCESS</span><h2>{t.requests}</h2></div><span className="request-count">{requests.length}</span></div>{requests.map(r=><div className="request-row" key={r.membershipId}><div><strong>{r.mobileNumber||r.email||r.userId}</strong><small>{new Date(r.requestedAtUtc).toLocaleString()}</small></div><div className="request-actions"><button className="approve-btn" onClick={()=>approve(r.membershipId,true)}><Check size={15}/>{t.approve}</button><button className="reject-btn" onClick={()=>approve(r.membershipId,false)}><X size={15}/>{t.reject}</button></div></div>)}</section>}
     </>}
