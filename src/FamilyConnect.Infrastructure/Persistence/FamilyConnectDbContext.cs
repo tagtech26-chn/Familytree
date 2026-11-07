@@ -11,6 +11,7 @@ public sealed class FamilyConnectDbContext(DbContextOptions<FamilyConnectDbConte
     public DbSet<FamilyGroup> FamilyGroups => Set<FamilyGroup>();
     public DbSet<FamilyGroupMembership> FamilyGroupMemberships => Set<FamilyGroupMembership>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
+    public DbSet<FamilyRelationship> FamilyRelationships => Set<FamilyRelationship>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -87,6 +88,23 @@ public sealed class FamilyConnectDbContext(DbContextOptions<FamilyConnectDbConte
                 .HasFilter("[LinkedUserId] IS NOT NULL AND [Status] <> 'Archived'");
             e.HasOne<FamilyGroup>().WithMany().HasForeignKey(x => x.FamilyGroupId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.LinkedUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<FamilyRelationship>(e =>
+        {
+            e.ToTable("FamilyRelationships", table =>
+            {
+                table.HasCheckConstraint("CK_FamilyRelationships_Type",
+                    "[RelationshipType] IN ('ParentChild','Spouse')");
+                table.HasCheckConstraint("CK_FamilyRelationships_NoSelf",
+                    "[FromFamilyMemberId] <> [ToFamilyMemberId]");
+            });
+            e.HasKey(x => x.FamilyRelationshipId);
+            e.Property(x => x.RelationshipType).HasMaxLength(20).IsRequired();
+            e.HasIndex(x => new { x.FamilyGroupId, x.FromFamilyMemberId, x.ToFamilyMemberId, x.RelationshipType }).IsUnique();
+            e.HasOne<FamilyGroup>().WithMany().HasForeignKey(x => x.FamilyGroupId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<FamilyMember>().WithMany().HasForeignKey(x => x.FromFamilyMemberId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<FamilyMember>().WithMany().HasForeignKey(x => x.ToFamilyMemberId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
