@@ -57,7 +57,27 @@ public sealed class FamilyRelationshipService(FamilyConnectDbContext db)
         };
         db.FamilyRelationships.Add(relationship);
         await db.SaveChangesAsync(ct);
-        return await Query(familyGroupId).SingleAsync(x => x.FamilyRelationshipId == relationship.FamilyRelationshipId, ct);
+        return await (
+            from r in db.FamilyRelationships.AsNoTracking()
+            join fromMember in db.FamilyMembers
+                on r.FromFamilyMemberId equals fromMember.FamilyMemberId
+            join toMember in db.FamilyMembers
+                on r.ToFamilyMemberId equals toMember.FamilyMemberId
+            where r.FamilyGroupId == familyGroupId
+                  && r.FamilyRelationshipId == relationship.FamilyRelationshipId
+            select new FamilyRelationshipResponse(
+                r.FamilyRelationshipId,
+                r.FamilyGroupId,
+                r.FromFamilyMemberId,
+                fromMember.FullName,
+                fromMember.TamilName,
+                r.ToFamilyMemberId,
+                toMember.FullName,
+                toMember.TamilName,
+                r.RelationshipType,
+                r.CreatedAtUtc
+            )
+        ).SingleAsync(ct);
     }
 
     public async Task DeleteAsync(Guid userId, Guid familyGroupId, Guid relationshipId, CancellationToken ct)
