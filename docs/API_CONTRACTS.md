@@ -55,5 +55,15 @@ Family profiles are separate from login accounts. A profile can represent a chil
 Fields: FullName (required), TamilName, Gender (Male/Female/Other/PreferNotToSay), DateOfBirth, PlaceOfBirth, DateOfDeath, ContactNumber, Email, LinkedUserId (optional). Status is Active, Deceased or Archived. Archived profiles are hidden from list/get.
 An active member cannot access another family's profiles. Inactive/non-members receive 404; Members attempting write operations receive 403.
 
+
+## Family relationships (JWT)
+Relationships belong to one family group. Both endpoint profiles must be non-archived profiles in that same family.
+- GET /families/{familyGroupId}/relationships — list relationships; any active family member may read.
+- POST /families/{familyGroupId}/relationships — create relationship; Owner, Admin or Editor only. Returns 201.
+  Request: { "fromFamilyMemberId": "guid", "toFamilyMemberId": "guid", "relationshipType": "ParentChild" }.
+  Supported types: ParentChild (directed from parent to child) and Spouse (stored as an unordered pair).
+- DELETE /families/{familyGroupId}/relationships/{relationshipId} — delete relationship; Owner, Admin or Editor only. Returns 204.
+Self-links, duplicate links, reverse parent-child contradictions, and cross-family profiles are rejected. Sibling relationships are derived from shared parents rather than stored as independent links.
+
 ## Error conventions
 400 validation error; 401 unauthenticated/invalid token; 403 insufficient role; 404 missing or concealed cross-family resource; 409 conflict; 429 rate limit. IDs are GUIDs; timestamps are UTC ISO-8601.
