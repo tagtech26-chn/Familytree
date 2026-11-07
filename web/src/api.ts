@@ -1,5 +1,11 @@
 export type Tokens = { accessToken: string; refreshToken: string; accessTokenExpiresAtUtc: string; userId: string };
 export type Family = { familyGroupId: string; groupCode: string; name: string; description?: string | null; role: string; status: string; createdAtUtc: string };
+export type FamilyRelationship = {
+  familyRelationshipId: string; familyGroupId: string;
+  fromFamilyMemberId: string; fromFullName: string; fromTamilName?: string | null;
+  toFamilyMemberId: string; toFullName: string; toTamilName?: string | null;
+  relationshipType: 'ParentChild' | 'Spouse'; createdAtUtc: string;
+};
 export type FamilyMember = {
   familyMemberId: string; familyGroupId: string; linkedUserId?: string | null; fullName: string;
   tamilName?: string | null; gender?: string | null; dateOfBirth?: string | null; placeOfBirth?: string | null;
@@ -48,6 +54,11 @@ export const api = {
     request<Family>('/families', { method: 'POST', body: JSON.stringify({ name, description, defaultLanguage, timeZoneId: 'Asia/Kolkata' }) }),
   joinFamily: (groupCode: string) => request<{ name: string; membershipStatus: string }>('/families/join', { method: 'POST', body: JSON.stringify({ groupCode }) }),
   members: (familyId: string) => request<FamilyMember[]>(`/families/${familyId}/members`),
+  relationships: (familyId: string) => request<FamilyRelationship[]>(`/families/${familyId}/relationships`),
+  createRelationship: (familyId: string, fromFamilyMemberId: string, toFamilyMemberId: string, relationshipType: 'ParentChild' | 'Spouse') =>
+    request<FamilyRelationship>(`/families/${familyId}/relationships`, { method: 'POST', body: JSON.stringify({ fromFamilyMemberId, toFamilyMemberId, relationshipType }) }),
+  deleteRelationship: (familyId: string, relationshipId: string) =>
+    request<void>(`/families/${familyId}/relationships/${relationshipId}`, { method: 'DELETE' }),
   createMember: (familyId: string, payload: Record<string, unknown>) =>
     request<FamilyMember>(`/families/${familyId}/members`, { method: 'POST', body: JSON.stringify(payload) }),
   updateMember: (familyId: string, memberId: string, payload: Record<string, unknown>) =>
